@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SHADOW POINT ステージエディター</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#111c2d;--line:#2a3a52;--text:#e8f0ff;--muted:#9aacc5;--accent:#58c8ff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,sans-serif}main{max-width:1200px;margin:auto;padding:14px;display:grid;gap:12px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;min-width:0}h1{font-size:20px;margin:0 0 8px}h2{font-size:15px;margin:0 0 10px}.muted{color:var(--muted);font-size:12px}.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}label{display:block;color:var(--muted);font-size:12px;margin-bottom:5px}input,select,button,textarea{font:inherit;color:var(--text);background:#0b1423;border:1px solid var(--line);border-radius:7px;padding:9px;width:100%;min-width:0}button{cursor:pointer;min-height:40px}button.active{border-color:var(--accent);background:#12334a}button.primary{background:#12628a;border-color:#2388b7}.tools{display:flex;gap:7px;flex-wrap:wrap}.tools button{width:auto;flex:1 1 100px}.boardwrap{overflow:auto;max-width:100%;border:1px solid var(--line);border-radius:8px;background:#08101c;padding:6px}canvas{display:block;width:100%;height:auto;touch-action:pan-y;cursor:crosshair}.columns{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(260px,1fr);gap:12px}.objectlist{display:grid;gap:7px}.objectrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px}.objectrow small{display:block;color:var(--muted);overflow-wrap:anywhere}.objectrow button{width:auto;padding:7px 10px}.areaform{display:grid;grid-template-columns:minmax(0,1fr) 85px;gap:8px}.status{min-height:20px;color:var(--muted);overflow-wrap:anywhere}textarea{width:100%;min-height:150px;font:12px ui-monospace,monospace}@media(max-width:760px){.columns{grid-template-columns:1fr}.grid2{grid-template-columns:1fr 1fr}main{padding:9px}}
+</style>
+</head>
+<body><main id="app">
+<header class="panel"><h1>SHADOW POINT ステージエディター</h1><div class="muted">現在のゲーム座標系に合わせた編集ツール（4800 × 912、12単位グリッド）。JSONを保存して、ステージデータとして管理できます。</div></header>
+<section class="panel">
+<div class="grid2">
+<div><label for="stageName">ステージ名</label><input id="stageName" maxlength="80" value="新しいステージ"></div>
+<div><label for="rule">基本ルール</label><select id="rule"><option value="standard">通常ルール</option><option value="area">エリア争奪戦</option></select></div>
+</div>
+<div class="grid2" style="margin-top:10px">
+<div><label for="worldW">ワールド幅</label><input id="worldW" type="number" value="4800" min="120" max="12000" step="12"></div>
+<div><label for="worldH">ワールド高さ</label><input id="worldH" type="number" value="912" min="120" max="2400" step="12"></div>
+</div>
+<div class="tools" style="margin-top:10px"><button id="resize">サイズを適用</button><button id="undo">1手戻す</button><button id="clear">オブジェクトを全削除</button></div>
+</section>
+<div class="columns">
+<section class="panel">
+<h2>マップ編集</h2>
+<div class="tools" id="tools">
+<button data-tool="select" class="active">選択・移動</button><button data-tool="wall">壁</button><button data-tool="abyss">奈落</button><button data-tool="dry">塗装不可床</button><button data-tool="area">得点エリア</button>
+</div>
+<p class="muted">オブジェクトツールを選び、盤面をドラッグして長方形を配置します。選択・移動では既存オブジェクトをタップして選択し、ドラッグで移動できます。座標は12単位グリッドにそろいます。</p>
+<div class="boardwrap"><canvas id="board" width="960" height="182"></canvas></div>
+<div id="coords" class="muted" style="margin-top:7px">選択なし</div>
+</section>
+<section class="panel">
+<h2>選択中オブジェクト</h2>
+<div id="selectedInfo" class="muted">オブジェクトを選択すると詳細が表示されます。</div>
+<div class="grid2" style="margin-top:10px">
+<div><label for="objX">X</label><input id="objX" type="number" step="12"></div><div><label for="objY">Y</label><input id="objY" type="number" step="12"></div>
+<div><label for="objW">幅</label><input id="objW" type="number" min="12" step="12"></div><div><label for="objH">高さ</label><input id="objH" type="number" min="12" step="12"></div>
+</div>
+<div class="tools" style="margin-top:10px"><button id="applyObj">数値を適用</button><button id="deleteObj">選択を削除</button></div>
+<hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+<h2>オブジェクト一覧</h2><div id="objectList" class="objectlist"></div>
+</section>
+</div>
+<section class="panel">
+<h2>JSONファイル</h2>
+<div class="tools"><button id="download" class="primary">ステージJSONをダウンロード</button><button id="showJson">JSONを表示</button><button id="loadFile">JSONファイルを読み込む</button><button id="loadText">欄のJSONを読み込む</button><input type="file" id="file" accept=".json,application/json" hidden></div>
+<p class="muted">形式にはワールドサイズ、ルール、壁・奈落・塗装不可床、複数の得点エリアが含まれます。現行ゲームのサーバーはまだこのファイルを自動読み込みしないため、ゲーム本体への接続には次の段階でサーバー側の読み込み処理を追加します。</p>
+<textarea id="json" spellcheck="false" aria-label="JSONデータ" placeholder="「JSONを表示」を押すとここに出力されます"></textarea>
+<div id="status" class="status" aria-live="polite"></div>
+</section>
+</main>
+<script>
+(()=>{
+const $=id=>document.getElementById(id),canvas=$('board'),ctx=canvas.getContext('2d');
+let worldW=4800,worldH=912,tool='select',objects=[],selected=null,history=[],drawing=null,dragging=null;
+const step=12, colors={wall:'#b6c2d4',abyss:'#8d3749',dry:'#d19a36',area:'#267db1'};
+const snap=n=>Math.round(n/step)*step, clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+function saveHistory(){history.push({worldW,worldH,objects:structuredClone(objects),selected});if(history.length>50)history.shift()}
+function scale(){return canvas.width/worldW}
+function nameType(t){return ({wall:'壁',abyss:'奈落',dry:'塗装不可床',area:'得点エリア'})[t]||t}
+function render(){
+ canvas.height=Math.max(80,Math.round(canvas.width*worldH/worldW));ctx.clearRect(0,0,canvas.width,canvas.height);
+ ctx.fillStyle='#091321';ctx.fillRect(0,0,canvas.width,canvas.height);
+ const s=scale();ctx.strokeStyle='rgba(130,160,195,.12)';ctx.lineWidth=1;
+ for(let x=0;x<=worldW;x+=120){ctx.beginPath();ctx.moveTo(x*s,0);ctx.lineTo(x*s,canvas.height);ctx.stroke()}
+ for(let y=0;y<=worldH;y+=120){ctx.beginPath();ctx.moveTo(0,y*s);ctx.lineTo(canvas.width,y*s);ctx.stroke()}
+ objects.forEach(o=>{ctx.fillStyle=colors[o.type]||'#267db1';ctx.globalAlpha=o.type==='area'?.4:.75;ctx.fillRect(o.x*s,o.y*s,o.w*s,o.h*s);ctx.globalAlpha=1;ctx.strokeStyle=o.id===selected?'#fff':'rgba(255,255,255,.7)';ctx.lineWidth=o.id===selected?3:1.3;ctx.strokeRect(o.x*s,o.y*s,o.w*s,o.h*s);ctx.fillStyle='#fff';ctx.font='bold 12px system-ui';ctx.fillText(o.name||nameType(o.type),o.x*s+4,o.y*s+14);if(o.type==='area'){ctx.font='11px system-ui';ctx.fillText(`${o.score??1}点`,o.x*s+4,o.y*s+28)}});
+ if(drawing){const r=rectFrom(drawing.start,drawing.now);ctx.strokeStyle='#58c8ff';ctx.setLineDash([5,4]);ctx.strokeRect(r.x*s,r.y*s,r.w*s,r.h*s);ctx.setLineDash([])}
+}
+function rectFrom(a,b){const x=Math.min(a.x,b.x),y=Math.min(a.y,b.y);return {x:snap(x),y:snap(y),w:Math.max(step,snap(Math.abs(b.x-a.x))),h:Math.max(step,snap(Math.abs(b.y-a.y)))}}
+function pos(e){const r=canvas.getBoundingClientRect(),s=r.width/worldW;return {x:clamp(snap((e.clientX-r.left)/s),0,worldW-step),y:clamp(snap((e.clientY-r.top)/(r.height/worldH)),0,worldH-step)}}
+function objectAt(p){for(let i=objects.length-1;i>=0;i--){const o=objects[i];if(p.x>=o.x&&p.x<=o.x+o.w&&p.y>=o.y&&p.y<=o.y+o.h)return o}return null}
+function status(s){$('status').textContent=s}
+function renderList(){const list=$('objectList');list.replaceChildren();if(!objects.length){const p=document.createElement('p');p.className='muted';p.textContent='オブジェクトはありません。';list.append(p)}objects.forEach(o=>{const row=document.createElement('div');row.className='objectrow';const t=document.createElement('div'),b=document.createElement('button');t.innerHTML='';const title=document.createElement('strong');title.textContent=o.name||nameType(o.type);const small=document.createElement('small');small.textContent=`${nameType(o.type)} · x:${o.x} y:${o.y} · ${o.w}×${o.h}${o.type==='area'?' · '+o.score+'点':''}`;t.append(title,small);b.textContent=o.id===selected?'選択中':'選択';b.addEventListener('click',()=>select(o.id));row.append(t,b);list.append(row)})}
+function select(id){selected=id;const o=objects.find(x=>x.id===id);$('selectedInfo').textContent=o?`${o.name||nameType(o.type)}（${nameType(o.type)}）`:'オブジェクトを選択すると詳細が表示されます。';for(const [id2,key] of [['objX','x'],['objY','y'],['objW','w'],['objH','h']])$(id2).value=o?o[key]:'';renderList();render()}
+function addObject(type,r){const o={id:type+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,5),type,x:r.x,y:r.y,w:r.w,h:r.h,name:nameType(type)};if(type==='area'){o.name='得点エリア '+(objects.filter(x=>x.type==='area').length+1);o.score=1}saveHistory();objects.push(o);select(o.id);status(`${nameType(type)}を配置しました。`)}
+function data(){return {format:'shadow-point-stage',version:1,name:$('stageName').value.trim()||'無題のステージ',world:{width:worldW,height:worldH,grid:step},rule:$('rule').value,objects:objects.map(o=>({...o})),areas:objects.filter(o=>o.type==='area').map(o=>({id:o.id,name:o.name,x:o.x,y:o.y,width:o.w,height:o.h,score:Number(o.score)||0})),rules:{standard:{enabled:true},area:{enabled:$('rule').value==='area',scoreByArea:true}}}}
+function validate(d){if(!d||d.format!=='shadow-point-stage'||!d.world||!Array.isArray(d.objects))throw Error('ステージJSONの形式が違います。');const ww=Number(d.world.width),hh=Number(d.world.height);if(!Number.isInteger(ww)||!Number.isInteger(hh)||ww<120||hh<120||ww>12000||hh>2400)throw Error('ワールドサイズが不正です。');for(const o of d.objects){if(!['wall','abyss','dry','area'].includes(o.type))throw Error('未対応のオブジェクト種類があります。');for(const k of ['x','y','w','h'])if(!Number.isFinite(Number(o[k])))throw Error('座標またはサイズが不正です。');if(o.w<=0||o.h<=0||o.x<0||o.y<0||o.x+o.w>ww||o.y+o.h>hh)throw Error('オブジェクトがワールドの範囲外です。');if(o.type==='area'&&!Number.isFinite(Number(o.score)))throw Error('得点エリアの得点が不正です.')}return true}
+function apply(d){validate(d);saveHistory();worldW=Number(d.world.width);worldH=Number(d.world.height);$('worldW').value=worldW;$('worldH').value=worldH;$('stageName').value=d.name||'無題のステージ';$('rule').value=d.rule==='area'?'area':'standard';objects=d.objects.map((o,i)=>({...o,id:String(o.id||'obj-'+i),name:String(o.name||nameType(o.type)),score:o.type==='area'?Number(o.score??1):undefined,x:Number(o.x),y:Number(o.y),w:Number(o.w),h:Number(o.h)}));selected=objects[0]?.id||null;renderList();select(selected);status('ステージJSONを読み込みました。')}
+canvas.addEventListener('pointerdown',e=>{const p=pos(e);canvas.setPointerCapture?.(e.pointerId);if(tool==='select'){const o=objectAt(p);if(o){saveHistory();select(o.id);dragging={id:o.id,start:p,ox:o.x,oy:o.y}}else{select(null)}}else{drawing={start:p,now:p};}});
+canvas.addEventListener('pointermove',e=>{const p=pos(e);$('coords').textContent=`X: ${p.x} / Y: ${p.y}（グリッド ${step}）`;if(drawing){drawing.now=p;render()}if(dragging){const o=objects.find(x=>x.id===dragging.id);if(o){o.x=clamp(snap(dragging.ox+p.x-dragging.start.x),0,worldW-o.w);o.y=clamp(snap(dragging.oy+p.y-dragging.start.y),0,worldH-o.h);render()}}});
+function endDraw(e){if(drawing){const r=rectFrom(drawing.start,drawing.now);drawing=null;addObject(tool,r)}if(dragging){dragging=null;renderList();select(selected)}}
+canvas.addEventListener('pointerup',endDraw);canvas.addEventListener('pointercancel',endDraw);
+$('tools').querySelectorAll('[data-tool]').forEach(b=>b.addEventListener('click',()=>{tool=b.dataset.tool;$('tools').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));status('選択中ツール：'+b.textContent)}));
+$('resize').addEventListener('click',()=>{const ww=Number($('worldW').value),hh=Number($('worldH').value);if(!Number.isInteger(ww)||!Number.isInteger(hh)||ww<120||hh<120||ww>12000||hh>2400||ww%step||hh%step){status('サイズは幅120〜12000、高さ120〜2400、いずれも12の倍数にしてください。');return}if(objects.some(o=>o.x+o.w>ww||o.y+o.h>hh)){status('現在のオブジェクトが新しい範囲からはみ出します。先に移動または削除してください。');return}saveHistory();worldW=ww;worldH=hh;render();status('ワールドサイズを適用しました。')});
+$('applyObj').addEventListener('click',()=>{const o=objects.find(x=>x.id===selected);if(!o){status('先にオブジェクトを選択してください。');return}const v={x:Number($('objX').value),y:Number($('objY').value),w:Number($('objW').value),h:Number($('objH').value)};if(Object.values(v).some(n=>!Number.isFinite(n))||v.w<step||v.h<step||v.x<0||v.y<0||v.x+v.w>worldW||v.y+v.h>worldH){status('座標とサイズを確認してください。');return}saveHistory();Object.assign(o,{x:snap(v.x),y:snap(v.y),w:snap(v.w),h:snap(v.h)});select(o.id);status('オブジェクトを更新しました。')});
+$('deleteObj').addEventListener('click',()=>{if(!selected){status('削除するオブジェクトを選択してください。');return}saveHistory();objects=objects.filter(o=>o.id!==selected);selected=null;select(null);status('オブジェクトを削除しました。')});
+$('clear').addEventListener('click',()=>{saveHistory();objects=[];selected=null;renderList();select(null);status('オブジェクトをすべて削除しました。')});
+$('undo').addEventListener('click',()=>{const h=history.pop();if(!h){status('戻せる操作がありません。');return}worldW=h.worldW;worldH=h.worldH;objects=h.objects;selected=h.selected;$('worldW').value=worldW;$('worldH').value=worldH;renderList();select(selected);status('1手戻しました。')});
+$('showJson').addEventListener('click',()=>{const d=data();validate(d);$('json').value=JSON.stringify(d,null,2);status('現在のステージをJSON欄に出力しました。')});
+$('download').addEventListener('click',()=>{try{const d=data();validate(d);const blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=(d.name.replace(/[\\/:*?"<>|\s]+/g,'_').slice(0,60)||'stage')+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);$('json').value=JSON.stringify(d,null,2);status('JSONをダウンロードしました。')}catch(e){status('保存エラー：'+e.message)}});
+$('loadFile').addEventListener('click',()=>$('file').click());$('file').addEventListener('change',async e=>{const f=e.target.files?.[0];if(!f)return;try{apply(JSON.parse(await f.text()))}catch(err){status('読み込みエラー：'+err.message)}finally{e.target.value=''}});
+$('loadText').addEventListener('click',()=>{try{apply(JSON.parse($('json').value))}catch(e){status('JSON読み込みエラー：'+e.message)}});
+render();renderList();select(null);
+})();
+</script></body></html>
