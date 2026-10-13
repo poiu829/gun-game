@@ -1,0 +1,22 @@
+{
+  "id": "stage1",
+  "name": "フラット",
+  "description": "オブフェクトは何もないです",
+  "rules": {
+    "standard": {
+      "objects": []
+    },
+    "area": {
+      "objects": [
+        {
+          "id": "area-mv6f05k2-8bk",
+          "type": "area",
+          "x": 2256,
+          "y": 312,
+          "w": 300,
+          "h": 300
+        }
+      ]
+    }
+  }
+}
