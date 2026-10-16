@@ -8,7 +8,7 @@
   "speed": 240,
   "charge": true,
   "maxCharge": 1.5,
-  "chargeCostPerSec": 3.5,
+  "chargeCostPerSec": 15,
   "paintRadius": 40,
   "impactPaintRadius": 60,
   "bulletRadius": 9
